@@ -5,25 +5,28 @@ using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace AtlantaSecurity
 {
-    public class EventHandler
+    public class EventsHandler
     {
-        private readonly MySqlConnection _connection;
+        private readonly HttpClient _httpClient;
         private readonly List<string> _levelPriority = new List<string> { "Low", "Medium", "High", "Extreme" };
         private readonly Config _config;
 
-        public EventHandler(MySqlConnection connection, Config config)
+        public EventsHandler(Config config)
         {
-            _connection = connection;
+            _httpClient = new HttpClient();
             _config = config;
         }
 
-        public void OnPlayerVerified(VerifiedEventArgs ev)
+        public async void OnPlayerVerified(VerifiedEventArgs ev)
         {
             string userId = ev.Player.UserId;
-            var playerData = GetPlayerData(userId);
+            var playerData = await GetPlayerData(userId);
 
             if (!string.IsNullOrEmpty(playerData.Reason) && !string.IsNullOrEmpty(playerData.Level))
             {
@@ -39,33 +42,44 @@ namespace AtlantaSecurity
             }
         }
 
-        private (string Reason, string Level) GetPlayerData(string userId)
+        private async Task<(string Reason, string Level)> GetPlayerData(string userId)
         {
-            string query = "SELECT reason, livello FROM SLBlacklist WHERE userId = @UserId";
+            string url = "http://sl.lunarscp.it:4000/get-player-data"; // Modifica con l'endpoint del tuo server
+            var json = $"{{\"userId\": \"{userId}\"}}";
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
 
             try
             {
-                using (var command = new MySqlCommand(query, _connection))
-                {
-                    command.Parameters.AddWithValue("@UserId", userId);
+                var response = await _httpClient.PostAsync(url, content);
 
-                    using (var reader = command.ExecuteReader())
-                    {
-                        if (reader.Read())
-                        {
-                            string reason = reader.GetString("reason");
-                            string level = reader.GetString("livello");
-                            return (reason, level);
-                        }
-                    }
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseData = await response.Content.ReadAsStringAsync();
+                    var playerData = ParsePlayerData(responseData); // Assumi che ParsePlayerData sia una funzione che trasforma il JSON in una tupla (string, string)
+
+                    return playerData;
+                }
+                else
+                {
+                    Log.Error($"Errore nella richiesta dei dati del giocatore: {response.StatusCode}");
                 }
             }
             catch (Exception ex)
             {
-                Log.Error($"Error querying player data: {ex.Message}");
+                Log.Error($"Errore durante la richiesta al server: {ex.Message}");
             }
 
             return (null, null);
+        }
+
+        private (string Reason, string Level) ParsePlayerData(string json)
+        {
+            // Funzione per deserializzare il JSON in un oggetto C#
+            // Assumendo che il JSON abbia campi "reason" e "level"
+            var data = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
+            string reason = data.ContainsKey("reason") ? data["reason"] : null;
+            string level = data.ContainsKey("level") ? data["level"] : null;
+            return (reason, level);
         }
 
         private void BroadcastToAdmins((string Reason, string Level) playerData, Player player)

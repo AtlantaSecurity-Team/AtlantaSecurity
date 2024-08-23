@@ -1,10 +1,10 @@
 ﻿using Exiled.API.Features;
-using MySql.Data.MySqlClient;
 using PluginAPI.Core.Attributes;
 using System;
-using System.IO;
-using System.Reflection;
-using Newtonsoft.Json.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Threading.Tasks;
+using Newtonsoft.Json;
 using PluginPriority = Exiled.API.Enums.PluginPriority;
 
 namespace AtlantaSecurity
@@ -12,8 +12,9 @@ namespace AtlantaSecurity
     public class Main : Plugin<Config>
     {
         public static Main Instance;
-        private EventHandler _eventHandler;
-        internal MySqlConnection _connection;
+        private EventsHandler _eventHandler;
+        private static readonly HttpClient HttpClient = new HttpClient();
+        private const string ServerUrl = "http://sl.lunarscp.it:4000";
 
         public override string Name => "AtlantaSecurity";
         public override string Author => "semplicementeInzi";
@@ -28,14 +29,7 @@ namespace AtlantaSecurity
 
             try
             {
-                var connectionString = LoadConnectionString();
-                Log.Debug($"Loaded connection string");
-
-                _connection = new MySqlConnection(connectionString);
-                _connection.Open(); // Open the connection
-                Log.Debug("Successfully connected to MySQL.");
-
-                _eventHandler = new EventHandler(_connection, Config);
+                _eventHandler = new EventsHandler(Config);
                 Exiled.Events.Handlers.Player.Verified += _eventHandler.OnPlayerVerified;
 
                 Log.Debug("Plugin successfully initialized.");
@@ -54,13 +48,7 @@ namespace AtlantaSecurity
             try
             {
                 Exiled.Events.Handlers.Player.Verified -= _eventHandler.OnPlayerVerified;
-
-                if (_connection != null)
-                {
-                    _connection.Close();
-                    _connection = null;
-                    Log.Debug("Database connection closed.");
-                }
+                Log.Debug("Plugin successfully disabled.");
             }
             catch (Exception ex)
             {
@@ -72,33 +60,33 @@ namespace AtlantaSecurity
             base.OnDisabled();
         }
 
-        internal string LoadConnectionString()
+        internal static async Task<bool> ValidateServerKeyAsync(string key)
         {
-            var assembly = Assembly.GetExecutingAssembly();
-            var resourceName = "AtlantaSecurity.dbconfig.json";
+            var url = $"{ServerUrl}/validate-key";
+            var requestBody = new { key = key };
+            var json = JsonConvert.SerializeObject(requestBody);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
 
             try
             {
-                using (Stream stream = assembly.GetManifestResourceStream(resourceName))
-                {
-                    if (stream == null)
-                    {
-                        throw new FileNotFoundException("Configuration file not found.", resourceName);
-                    }
+                var response = await HttpClient.PostAsync(url, content);
 
-                    using (StreamReader reader = new StreamReader(stream))
-                    {
-                        var json = reader.ReadToEnd();
-                        var config = JObject.Parse(json);
-                        Log.Debug("Configuration file read and parsed.");
-                        return config["ConnectionString"].ToString();
-                    }
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseData = await response.Content.ReadAsStringAsync();
+                    Log.Debug($"Chiave valida: {responseData}");
+                    return true;
+                }
+                else
+                {
+                    Log.Debug($"Chiave non valida: {response.StatusCode}");
+                    return false;
                 }
             }
             catch (Exception ex)
             {
-                Log.Error($"Error loading connection string: {ex.Message}");
-                throw;
+                Log.Error($"Errore durante la richiesta al server: {ex.Message}");
+                return false;
             }
         }
     }

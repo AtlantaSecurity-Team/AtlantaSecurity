@@ -1,8 +1,10 @@
 ﻿using CommandSystem;
 using Exiled.API.Features;
-using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Net;
+using System.Text.Json;
 
 namespace AtlantaSecurity.Commands
 {
@@ -16,16 +18,21 @@ namespace AtlantaSecurity.Commands
 
         public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)
         {
+            if (!Server.IsVerified)
+            {
+                response = "Il server non è verificato, AtlantaSecurity è un plugin riservato ai server verificati da Northwood Studios.\nPer verificare il tuo server usa il comando !verify oppure invia una mail a server.verification@scpslgame.com";
+                return false;
+            }
+
             Log.Debug("Executing global search command.");
 
-            // Get all players from the server
             var allPlayers = Player.List;
             int count = 0;
             List<string> results = new List<string>();
 
             foreach (var player in allPlayers)
             {
-                var playerInfo = GetPlayerInfoFromDatabase(player.UserId);
+                var playerInfo = GetPlayerInfoFromServer(player.UserId);
 
                 if (playerInfo != null)
                 {
@@ -46,47 +53,43 @@ namespace AtlantaSecurity.Commands
             return true;
         }
 
-        private PlayerInfo GetPlayerInfoFromDatabase(string userId)
+        private PlayerInfo GetPlayerInfoFromServer(string userId)
         {
-            Log.Debug("Checking if the player's Steam ID is in the database...");
-
-            string query = "SELECT userId, reason, livello, expiryDate FROM SLBlacklist WHERE userId = @UserID";
-            Log.Debug($"Executing query: {query}");
+            Log.Debug("Requesting player info from the external server...");
 
             try
             {
-                using (var connection = new MySqlConnection(Main.Instance.LoadConnectionString()))
-                {
-                    connection.Open();
-                    using (MySqlCommand command = new MySqlCommand(query, connection))
-                    {
-                        command.Parameters.AddWithValue("@UserID", userId);
-                        Log.Debug($"Query parameter set: @UserID = {userId}");
+                var request = WebRequest.Create("http://sl.lunarscp.it:4000/get-player-data") as HttpWebRequest;
+                request.Method = "POST";
+                request.ContentType = "application/json";
 
-                        using (var reader = command.ExecuteReader())
-                        {
-                            if (reader.Read())
-                            {
-                                Log.Debug("Player record found in the database.");
-                                return new PlayerInfo
-                                {
-                                    UserID = reader["userId"].ToString(),
-                                    Reason = reader["reason"].ToString(),
-                                    Level = reader["livello"].ToString(),
-                                    ExpiryDate = reader["expiryDate"] as DateTime?
-                                };
-                            }
-                            else
-                            {
-                                Log.Debug("No record found for the specified UserID.");
-                            }
-                        }
+                using (var streamWriter = new StreamWriter(request.GetRequestStream()))
+                {
+                    string json = $"{{\"userId\":\"{userId}\"}}";
+                    streamWriter.Write(json);
+                    streamWriter.Flush();
+                    streamWriter.Close();
+                }
+
+                var response = request.GetResponse() as HttpWebResponse;
+                if (response.StatusCode == HttpStatusCode.OK)
+                {
+                    using (var streamReader = new StreamReader(response.GetResponseStream()))
+                    {
+                        var jsonString = streamReader.ReadToEnd();
+                        var playerInfo = JsonSerializer.Deserialize<PlayerInfo>(jsonString, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        Log.Debug("Player info successfully retrieved from the server.");
+                        return playerInfo;
                     }
                 }
+                else
+                {
+                    Log.Debug($"Failed to retrieve player info. Server response: {response.StatusCode}");
+                }
             }
-            catch (Exception ex)
+            catch (WebException ex)
             {
-                Log.Debug($"Database query error: {ex.Message}");
+                Log.Debug($"Error during HTTP request: {ex.Message}");
             }
 
             return null;
