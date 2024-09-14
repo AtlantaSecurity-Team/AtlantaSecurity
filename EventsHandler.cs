@@ -1,4 +1,5 @@
-﻿using Exiled.API.Features;
+﻿using AtlantaSecurity.API;
+using Exiled.API.Features;
 using Exiled.Events.EventArgs;
 using Exiled.Events.EventArgs.Player;
 using MySql.Data.MySqlClient;
@@ -16,6 +17,7 @@ namespace AtlantaSecurity
         private readonly HttpClient _httpClient;
         private readonly List<string> _levelPriority = new List<string> { "Low", "Medium", "High", "Extreme" };
         private readonly Config _config;
+        private readonly Translator _translator = new Translator();
 
         public EventsHandler(Config config)
         {
@@ -23,6 +25,13 @@ namespace AtlantaSecurity
             _config = config;
         }
 
+        public void OnWaitingForPlayers()
+        {
+            if (!API.Utils.ValidateKeyByIp(Server.IpAddress))
+            {
+                Log.Warn(_translator.Translate("The server doesn't have a key yet, which means the plugin won't work unless you request one.\nTo request a key, run the getkey command"));
+            }
+        }
         public async void OnPlayerVerified(VerifiedEventArgs ev)
         {
             if (!API.Utils.ValidateKeyByIp(Server.IpAddress)) return;

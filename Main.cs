@@ -1,10 +1,5 @@
 ﻿using Exiled.API.Features;
-using PluginAPI.Core.Attributes;
 using System;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
 using PluginPriority = Exiled.API.Enums.PluginPriority;
 
 namespace AtlantaSecurity
@@ -13,8 +8,6 @@ namespace AtlantaSecurity
     {
         public static Main Instance;
         private EventsHandler _eventHandler;
-        private static readonly HttpClient HttpClient = new HttpClient();
-        private const string ServerUrl = "http://sl.lunarscp.it:4000";
 
         public override string Name => "AtlantaSecurity";
         public override string Author => "semplicementeInzi";
@@ -31,6 +24,7 @@ namespace AtlantaSecurity
             {
                 _eventHandler = new EventsHandler(Config);
                 Exiled.Events.Handlers.Player.Verified += _eventHandler.OnPlayerVerified;
+                Exiled.Events.Handlers.Server.WaitingForPlayers += _eventHandler.OnWaitingForPlayers;
 
                 Log.Debug("Plugin successfully initialized.");
             }
@@ -47,6 +41,8 @@ namespace AtlantaSecurity
         {
 
             Exiled.Events.Handlers.Player.Verified -= _eventHandler.OnPlayerVerified;
+            Exiled.Events.Handlers.Server.WaitingForPlayers -= _eventHandler.OnWaitingForPlayers;
+
             Log.Debug("Plugin successfully disabled.");
             
             Instance = null;
