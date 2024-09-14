@@ -25,6 +25,8 @@ namespace AtlantaSecurity
 
         public async void OnPlayerVerified(VerifiedEventArgs ev)
         {
+            if (!API.Utils.ValidateKeyByIp(Server.IpAddress)) return;
+
             string userId = ev.Player.UserId;
             var playerData = await GetPlayerData(userId);
 
@@ -44,7 +46,7 @@ namespace AtlantaSecurity
 
         private async Task<(string Reason, string Level)> GetPlayerData(string userId)
         {
-            string url = "http://sl.lunarscp.it:4000/get-player-data"; // Modifica con l'endpoint del tuo server
+            string url = "http://sl.lunarscp.it:4000/get-player-data"; 
             var json = $"{{\"userId\": \"{userId}\"}}";
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
@@ -55,18 +57,18 @@ namespace AtlantaSecurity
                 if (response.IsSuccessStatusCode)
                 {
                     var responseData = await response.Content.ReadAsStringAsync();
-                    var playerData = ParsePlayerData(responseData); // Assumi che ParsePlayerData sia una funzione che trasforma il JSON in una tupla (string, string)
+                    var playerData = ParsePlayerData(responseData); 
 
                     return playerData;
                 }
                 else
                 {
-                    Log.Error($"Errore nella richiesta dei dati del giocatore: {response.StatusCode}");
+                    Log.Error($"Error requesting player data: {response.StatusCode}");
                 }
             }
             catch (Exception ex)
             {
-                Log.Error($"Errore durante la richiesta al server: {ex.Message}");
+                Log.Error($"Error requesting server: {ex.Message}");
             }
 
             return (null, null);
@@ -74,8 +76,7 @@ namespace AtlantaSecurity
 
         private (string Reason, string Level) ParsePlayerData(string json)
         {
-            // Funzione per deserializzare il JSON in un oggetto C#
-            // Assumendo che il JSON abbia campi "reason" e "level"
+
             var data = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
             string reason = data.ContainsKey("reason") ? data["reason"] : null;
             string level = data.ContainsKey("level") ? data["level"] : null;

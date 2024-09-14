@@ -19,7 +19,7 @@ namespace AtlantaSecurity
         public override string Name => "AtlantaSecurity";
         public override string Author => "semplicementeInzi";
         public override string Prefix => "AtlantaSecurity";
-        public override Version Version => new Version(0, 1, 0);
+        public override Version Version => new Version(1, 0, 0);
         public override Version RequiredExiledVersion => new Version(8, 11, 0);
         public override PluginPriority Priority => PluginPriority.Medium;
 
@@ -45,49 +45,14 @@ namespace AtlantaSecurity
 
         public override void OnDisabled()
         {
-            try
-            {
-                Exiled.Events.Handlers.Player.Verified -= _eventHandler.OnPlayerVerified;
-                Log.Debug("Plugin successfully disabled.");
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error during plugin shutdown: {ex.Message}");
-                Log.Error(ex.StackTrace);
-            }
 
+            Exiled.Events.Handlers.Player.Verified -= _eventHandler.OnPlayerVerified;
+            Log.Debug("Plugin successfully disabled.");
+            
             Instance = null;
             base.OnDisabled();
         }
 
-        internal static async Task<bool> ValidateServerKeyAsync(string key)
-        {
-            var url = $"{ServerUrl}/validate-key";
-            var requestBody = new { key = key };
-            var json = JsonConvert.SerializeObject(requestBody);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-            try
-            {
-                var response = await HttpClient.PostAsync(url, content);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    var responseData = await response.Content.ReadAsStringAsync();
-                    Log.Debug($"Chiave valida: {responseData}");
-                    return true;
-                }
-                else
-                {
-                    Log.Debug($"Chiave non valida: {response.StatusCode}");
-                    return false;
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Errore durante la richiesta al server: {ex.Message}");
-                return false;
-            }
-        }
+       
     }
 }

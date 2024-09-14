@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace AtlantaSecurity.Commands
 {
-    [CommandHandler(typeof(RemoteAdminCommandHandler))]
+    [CommandHandler(typeof(GameConsoleCommandHandler))]
     internal class GetKey : ICommand
     {
         public string Command { get; } = "getkey";
@@ -19,70 +19,62 @@ namespace AtlantaSecurity.Commands
 
         private static readonly HttpClient _httpClient = new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(10) // Imposta un timeout di 10 secondi
+            Timeout = TimeSpan.FromSeconds(10) 
         };
 
         public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)
         {
-            response = string.Empty;
 
-            if (arguments.Count < 1)
-            {
-                response = "Usage: getkey <IP>";
-                return false;
-            }
-
-            string serverIp = arguments.At(0);
+            string serverIp = Server.IpAddress;  
 
             if (string.IsNullOrWhiteSpace(serverIp))
             {
-                response = "IP mancante";
+                response = "Failed to retrieve the server's IP address.";
                 return false;
             }
 
             if (!Server.IsVerified)
             {
-                response = "Il server non è verificato, AtlantaSecurity è un plugin riservato ai server verificati da Northwood Studios.\nPer verificare il tuo server usa il comando !verify oppure invia una mail a server.verification@scpslgame.com";
+                response = "This server is not verified. AtlantaSecurity is a plugin reserved for servers verified by Northwood Studios.\nTo verify your server, use the command !verify or send an email to server.verification@scpslgame.com";
                 return false;
             }
 
             try
             {
+                // Fetch or generate the key using the server's IP
                 var key = FetchOrGenerateKey(serverIp);
 
                 if (key != null)
                 {
-                    response = $"Chiave per IP {serverIp}: {key}";
+                    response = $"Successfully obtained key for this IP: {serverIp}";
                     return true;
                 }
                 else
                 {
-                    response = "Errore nella richiesta della chiave.";
+                    response = "Error while requesting the key.";
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                Log.Error($"Errore durante l'esecuzione del comando getkey: {ex.Message}");
-                response = "Errore del server.";
+                Log.Error($"Error executing the getkey command: {ex.Message}");
+                response = "Server error.";
                 return false;
             }
         }
 
-
+  
         private static string FetchOrGenerateKey(string serverIp)
         {
             string url = "http://sl.lunarscp.it:4000/generate-key";
-            string requestBody = $"{{\"ip\": \"{serverIp}\"}}"; // Forma corretta del JSON
+            string requestBody = $"{{\"ip\": \"{serverIp}\"}}"; 
 
             try
             {
-                // Crea la richiesta HTTP sincrona
                 var request = WebRequest.Create(url) as HttpWebRequest;
                 request.Method = "POST";
                 request.ContentType = "application/json";
 
-                // Scrivi il corpo della richiesta
                 using (var streamWriter = new StreamWriter(request.GetRequestStream()))
                 {
                     streamWriter.Write(requestBody);
@@ -90,7 +82,6 @@ namespace AtlantaSecurity.Commands
                     streamWriter.Close();
                 }
 
-                // Ottieni la risposta
                 using (var response = request.GetResponse() as HttpWebResponse)
                 {
                     if (response.StatusCode == HttpStatusCode.OK)
@@ -98,14 +89,13 @@ namespace AtlantaSecurity.Commands
                         using (var streamReader = new StreamReader(response.GetResponseStream()))
                         {
                             var responseText = streamReader.ReadToEnd();
-                            // Assicurati che la risposta JSON contenga la chiave
                             var jsonResponse = JObject.Parse(responseText);
                             return jsonResponse["key"]?.ToString();
                         }
                     }
                     else
                     {
-                        Log.Error($"Errore nella risposta del server: {response.StatusCode}");
+                        Log.Error($"Server response error: {response.StatusCode}");
                         return null;
                     }
                 }
@@ -119,14 +109,12 @@ namespace AtlantaSecurity.Commands
                         using (var reader = new StreamReader(responseStream))
                         {
                             var errorText = reader.ReadToEnd();
-                            Log.Error($"Errore durante la richiesta della chiave: {ex.Message}, Risposta del server: {errorText}");
+                            Log.Error($"Error while requesting the key: {ex.Message}, Server response: {errorText}");
                         }
                     }
                 }
                 return null;
             }
         }
-
-
     }
 }

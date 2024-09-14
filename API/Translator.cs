@@ -1,34 +1,44 @@
 ﻿using System;
 using System.Net.Http;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using AtlantaSecurity.API;
 using Newtonsoft.Json.Linq;
 
 namespace AtlantaSecurity.API
 {
     internal class Translator
     {
-        private readonly string _apiKey;
         private readonly HttpClient _httpClient;
 
         public Translator()
         {
-            _apiKey = ConfigLoader.LoadDeepLApiKey(); // Recupera la chiave API dal file di configurazione
             _httpClient = new HttpClient();
         }
 
-        public async Task<string> TranslateToEnglish(string text)
+        public string Translate(string text)
         {
-            var url = "https://api-free.deepl.com/v2/translate";
+            var targetLanguage = Main.Instance.Config.Language; // Recupera la lingua dal file di configurazione
+            if (targetLanguage == "english")
+            {
+                return text; // Nessuna traduzione necessaria se la lingua è già inglese
+            }
+            else if (targetLanguage == "italiano")
+            {
+                return TranslateToItalian(text);
+            }
+            else
+            {
+                throw new Exception("Language configuration is not valid.");
+            }
+        }
 
-            // Prepara il contenuto della richiesta
+        private string TranslateToItalian(string text)
+        {
+            var url = "http://localhost:4000/translate"; // URL del webserver
+
             var requestBody = new
             {
                 text = text,
-                target_lang = "EN",
-                auth_key = _apiKey
+                targetLang = "IT" // Lingua target per la traduzione
             };
 
             var content = new StringContent(
@@ -39,27 +49,22 @@ namespace AtlantaSecurity.API
 
             try
             {
-                // Imposta un timeout per la richiesta
-                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                var response = await _httpClient.PostAsync(url, content, cts.Token);
+                // Esegui la richiesta sincrona
+                var response = _httpClient.PostAsync(url, content).GetAwaiter().GetResult();
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var responseBody = await response.Content.ReadAsStringAsync();
+                    var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
                     var jsonResponse = JObject.Parse(responseBody);
 
                     // Estrai e ritorna il testo tradotto
-                    var translatedText = jsonResponse["translations"][0]["text"].ToString();
+                    var translatedText = jsonResponse["translatedText"].ToString();
                     return translatedText;
                 }
                 else
                 {
                     throw new Exception($"Translation API request failed with status code {response.StatusCode}");
                 }
-            }
-            catch (TaskCanceledException)
-            {
-                throw new Exception("Translation request timed out.");
             }
             catch (Exception ex)
             {

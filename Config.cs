@@ -16,8 +16,8 @@ namespace AtlantaSecurity
         [Description("Do you want to enable debugging")]
         public bool Debug { get; set; } = false;
 
-        /*[Description("What language would you like to use? (english, italian)")]
-        public string Language { get; set; } = "english";*/
+        [Description("What language would you like to use? (english, italiano)")]
+        public string Language { get; set; } = "italiano";
 
         [Description("Should I kick a player if he has a certain level of danger?")]
         public bool KickForDangerousness { get; set; } = true;

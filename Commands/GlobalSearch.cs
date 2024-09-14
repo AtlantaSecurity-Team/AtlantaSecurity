@@ -1,10 +1,12 @@
 ﻿using CommandSystem;
 using Exiled.API.Features;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
-using System.Text.Json;
+using AtlantaSecurity.API;
+using static AtlantaSecurity.Commands.UserInfo;
 
 namespace AtlantaSecurity.Commands
 {
@@ -12,15 +14,22 @@ namespace AtlantaSecurity.Commands
     internal class GlobalSearch : ICommand
     {
         public string Command { get; } = "globalsearch";
-        public string[] Aliases { get; } = { "globalsearch" };
+        public string[] Aliases { get; } = { "gsearch" };
         public string Description { get; } = "Searches the global database for players and retrieves their information.";
         public bool SanitizeResponse => true;
+
+        private readonly Translator _translator = new Translator();
 
         public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)
         {
             if (!Server.IsVerified)
             {
-                response = "Il server non è verificato, AtlantaSecurity è un plugin riservato ai server verificati da Northwood Studios.\nPer verificare il tuo server usa il comando !verify oppure invia una mail a server.verification@scpslgame.com";
+                response = _translator.Translate("The server is not verified, AtlantaSecurity is a plugin reserved for servers verified by Northwood Studios.\nTo verify your server use the !verify command or send an email to server.verification@scpslgame.com");
+                return false;
+            }
+            if(!API.Utils.ValidateKeyByIp(Server.IpAddress))
+            {
+                response = _translator.Translate("The server is not authorized to use this command. Use the getKey command to get a key.");
                 return false;
             }
 
@@ -45,9 +54,9 @@ namespace AtlantaSecurity.Commands
                 }
             }
 
-            response = $"\n<color=red>[ATLANTA-BLACKLIST]</color>\nNumber of players found: {count}\n" +
+            response = _translator.Translate($"\n<color=red>[ATLANTA-BLACKLIST]</color>\nNumber of players found: {count}\n" +
                        $"Details:\n" +
-                       string.Join("\n", results);
+                       string.Join("\n", results));
 
             Log.Debug($"Global search completed. Number of players found: {count}");
             return true;
@@ -68,7 +77,6 @@ namespace AtlantaSecurity.Commands
                     string json = $"{{\"userId\":\"{userId}\"}}";
                     streamWriter.Write(json);
                     streamWriter.Flush();
-                    streamWriter.Close();
                 }
 
                 var response = request.GetResponse() as HttpWebResponse;
@@ -77,9 +85,22 @@ namespace AtlantaSecurity.Commands
                     using (var streamReader = new StreamReader(response.GetResponseStream()))
                     {
                         var jsonString = streamReader.ReadToEnd();
-                        var playerInfo = JsonSerializer.Deserialize<PlayerInfo>(jsonString, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                        Log.Debug("Player info successfully retrieved from the server.");
-                        return playerInfo;
+                        if (string.IsNullOrEmpty(jsonString))
+                        {
+                            Log.Debug("Empty or null JSON response.");
+                            return null;
+                        }
+
+                        try
+                        {
+                            var playerInfo = JsonConvert.DeserializeObject<PlayerInfo>(jsonString);
+                            Log.Debug("Player info successfully retrieved from the server.");
+                            return playerInfo;
+                        }
+                        catch (JsonException ex)
+                        {
+                            Log.Debug($"Deserialization error: {ex.Message} - {ex.StackTrace}");
+                        }
                     }
                 }
                 else
@@ -93,14 +114,6 @@ namespace AtlantaSecurity.Commands
             }
 
             return null;
-        }
-
-        internal class PlayerInfo
-        {
-            public string UserID { get; set; }
-            public string Reason { get; set; }
-            public string Level { get; set; }
-            public DateTime? ExpiryDate { get; set; }
         }
     }
 }
