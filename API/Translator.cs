@@ -16,12 +16,9 @@ namespace AtlantaSecurity.API
 
         public string Translate(string text)
         {
-            var targetLanguage = Main.Instance.Config.Language; // Recupera la lingua dal file di configurazione
-            if (targetLanguage == "english")
-            {
-                return text; // Nessuna traduzione necessaria se la lingua è già inglese
-            }
-            else if (targetLanguage == "italiano")
+            var targetLanguage = Main.Instance.Config.Language;
+
+             if (targetLanguage == "italiano")
             {
                 return TranslateToItalian(text);
             }
@@ -33,12 +30,12 @@ namespace AtlantaSecurity.API
 
         private string TranslateToItalian(string text)
         {
-            var url = "http://localhost:4000/translate"; // URL del webserver
+            var url = "http://sl.lunarscp.it:4000/translate"; 
 
             var requestBody = new
             {
                 text = text,
-                targetLang = "IT" // Lingua target per la traduzione
+                targetLang = "IT"
             };
 
             var content = new StringContent(
@@ -49,7 +46,6 @@ namespace AtlantaSecurity.API
 
             try
             {
-                // Esegui la richiesta sincrona
                 var response = _httpClient.PostAsync(url, content).GetAwaiter().GetResult();
 
                 if (response.IsSuccessStatusCode)
@@ -57,7 +53,6 @@ namespace AtlantaSecurity.API
                     var responseBody = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
                     var jsonResponse = JObject.Parse(responseBody);
 
-                    // Estrai e ritorna il testo tradotto
                     var translatedText = jsonResponse["translatedText"].ToString();
                     return translatedText;
                 }

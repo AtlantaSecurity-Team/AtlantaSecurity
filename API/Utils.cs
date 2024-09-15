@@ -38,14 +38,8 @@ namespace AtlantaSecurity.API
                 HttpResponseMessage response = _httpClient.SendAsync(request).Result;
 
                 // Verifica se la risposta ha avuto successo
-                if (response.IsSuccessStatusCode)
-                {
-                    return true;
-                }
-                else
-                {
-                    return false;
-                }
+                return response.IsSuccessStatusCode;
+
             }
             catch (Exception ex)
             {
